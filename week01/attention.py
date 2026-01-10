@@ -134,7 +134,7 @@ class TransformerEncoder(nn.Module):
         self.cls = nn.Parameter(torch.zeros(1, 1, config.n_embd))
         nn.init.normal_(self.cls, mean=0, std=0.02)
         self.classifier = nn.Linear(config.n_embd, 2)
-        self.ln_f = nn.LayerNorm(config.n_head)
+        self.ln_f = nn.LayerNorm(config.n_embd)
         self.dropout = nn.Dropout(config.dropout)
     
     def forward(self, idx):
