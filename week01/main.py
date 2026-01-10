@@ -1,13 +1,14 @@
 import re
 import random
 
+import pandas as pd
 import numpy as np
 
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from torch.optim import SGD
-import pandas as pd
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
 
 from attention import TransformerEncoder, TransformerConfig
 from gru import GRUEncoder
@@ -67,6 +68,9 @@ def encode_text(text, vocab, max_len):
     ids = [vocab.stoi.get(tok, vocab.unk_idx) for tok in tokens]
     ids = ids[:max_len]
 
+    if not ids:
+        ids = [vocab.unk_idx]
+
     if len(ids) < max_len:
         ids = ids + [vocab.pad_idx] * (max_len - len(ids))
     
@@ -77,6 +81,13 @@ def load_csv(path, text_col="review", label_col="sentiment"):
     texts = df[text_col].astype(str).tolist()
     labels = df[label_col].astype(str).tolist()
     labels = [1 if r == "positive" else 0 for r in labels]
+    return texts, labels
+
+def shuffle(texts, labels, seed):
+    rng = np.random.default_rng(seed)
+    perm = rng.permutation(len(texts))
+    texts = [texts[i] for i in perm]
+    labels = [labels[i] for i in perm]
     return texts, labels
 
 class IMDBDataset(Dataset):
@@ -94,28 +105,33 @@ class IMDBDataset(Dataset):
     def __getitem__(self, idx):
         x = encode_text(self.texts[idx], self.vocab, self.max_len)
         y = torch.tensor(self.labels[idx], dtype=torch.long)
-        return x, y
+        length = (x != self.vocab.pad_idx).sum().item()
+        return x, y, length
 
-def run_epoch(model, dataloader, loss_fn, optimizer, device):
+def run_epoch(model, dataloader, loss_fn, optimizer, scheduler, device):
     is_train = optimizer is not None
     model.train() if is_train else model.eval()
 
     running_loss = 0.0
     correct = 0
     total = 0
-    for x, y in dataloader:
+    for x, y, lengths in dataloader:
         x = x.to(device)
         y = y.to(device)
+        lengths = lengths.to(device)
 
         if is_train:
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
-        logits = model(x)
+        logits = model(x, lengths)
         loss = loss_fn(logits, y)
 
         if is_train:
             loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
 
         running_loss += loss.item() * x.size(0)
         preds = logits.argmax(dim=1)
@@ -131,11 +147,13 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     texts, labels = load_csv(args.path)
-    vocab = build_vocab(texts, args.max_vocab_size, args.min_freq, args.pad_token, args.unk_token)
-
+    
+    texts, labels = shuffle(texts, labels, args.seed)
     n_split = int(args.split * len(texts))
     texts_train = texts[:n_split]; texts_test = texts[n_split:]
     labels_train = labels[:n_split]; labels_test = labels[n_split:]
+    
+    vocab = build_vocab(texts_train, args.max_vocab_size, args.min_freq, args.pad_token, args.unk_token)
 
     train_dataset = IMDBDataset(texts_train, labels_train, vocab, args.max_len)
     test_dataset = IMDBDataset(texts_test, labels_test, vocab, args.max_len)
@@ -146,6 +164,7 @@ def main(args):
     if args.arch == "GRU":
         model = GRUEncoder(
             vocab_size=len(vocab.itos),
+            padding_idx=vocab.pad_idx,
             embed_size=args.embed_size,
             hidden_size=args.hidden_size,
             output_size=args.num_classes,
@@ -167,16 +186,30 @@ def main(args):
 
     model = model.to(device)
 
-    optimizer = SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    opt_kwargs = {
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "betas": (args.beta1, args.beta2)
+    }
+    optimizer = AdamW(model.parameters(), **opt_kwargs)
     loss_fn = nn.CrossEntropyLoss()
+
+    max_step = args.epochs * len(train_dataloader)
+    warmup_step = int(max_step * args.warmup_ratio)
+    if warmup_step > 0:
+        warmup_scheduler = LambdaLR(optimizer, lr_lambda=lambda step: min((step + 1) / warmup_step, 1.0))
+        cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_step - warmup_step, eta_min=args.min_lr)
+        scheduler = SequentialLR(optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_step])
+    else:
+        scheduler = CosineAnnealingLR(optimizer, T_max=max_step, eta_min=args.min_lr)
 
     for epoch in range(args.epochs):
         print(f"running epoch: {epoch + 1}/{args.epochs}")
         train_loss, train_acc = run_epoch(
-            model, train_dataloader, loss_fn, optimizer, device
+            model, train_dataloader, loss_fn, optimizer, scheduler, device
         )
         test_loss, test_acc = run_epoch(
-            model, test_dataloader, loss_fn, None, device
+            model, test_dataloader, loss_fn, None, None, device
         )
         print(
             f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
@@ -189,11 +222,15 @@ if __name__ == "__main__":
 
     parser.add_argument("--path", type=str, default="IMDB-Dataset.csv")
     parser.add_argument("--arch", type=str, default="GRU", choices=["GRU", "Transformer"])
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=0.1)
-    parser.add_argument("--momentum", type=float, default=0.9)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--min_lr", type=float, default=0.0)
+    parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument("--beta1", type=float, default=0.9)
+    parser.add_argument("--beta2", type=float, default=0.99)
     parser.add_argument("--split", type=float, default=0.8)
     parser.add_argument("--max_len", type=int, default=256)
     parser.add_argument("--max_vocab_size", type=int, default=20000)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass
 class TransformerConfig:
+    
     block_size: int = 256
     vocab_size: int = 20000
     pad_idx: int = 0
@@ -48,6 +49,13 @@ class EmbeddingLayer(nn.Module):
         if padding_idx is not None:
             with torch.no_grad():
                 self.weight[padding_idx].zero_()
+            
+            def hook(grad):
+                grad = grad.clone()
+                grad[padding_idx].zero_()
+                return grad
+
+            self.weight.register_hook(hook)
     
     def forward(self, x):
         """
@@ -127,7 +135,7 @@ class TransformerEncoder(nn.Module):
         super().__init__()
         self.config = config
         self.transformer = nn.ModuleDict(dict(
-            wte = EmbeddingLayer(config.vocab_size, config.n_embd),
+            wte = EmbeddingLayer(config.vocab_size, config.n_embd, padding_idx=config.pad_idx),
             wpe = PositionalEncoding(config.n_embd, config.block_size + 1),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layers)])
         ))
@@ -137,17 +145,17 @@ class TransformerEncoder(nn.Module):
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.dropout = nn.Dropout(config.dropout)
     
-    def forward(self, idx):
+    def forward(self, idx, lengths): # add lengths argument to match GRU
         B, T = idx.size()
         assert T <= self.config.block_size
 
-        mask = (idx == self.config.pad_idx)
+        src_key_padding_mask = (idx == self.config.pad_idx)
         tok_emb = self.transformer.wte(idx)  # (B, T, C)
         cls = self.cls.expand(B, 1, self.config.n_embd)
         x = torch.cat([cls, tok_emb], dim=1)
 
         cls_mask = torch.zeros(B, 1, dtype=torch.bool, device=idx.device)
-        mask = torch.cat([cls_mask, mask], dim=1)
+        mask = torch.cat([cls_mask, src_key_padding_mask], dim=1)
 
         pos_emb = self.transformer.wpe(T + 1, device=idx.device)
         out = self.dropout(x + pos_emb.unsqueeze(0))
