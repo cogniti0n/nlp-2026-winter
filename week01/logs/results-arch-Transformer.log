@@ -1,0 +1,50 @@
+2026-01-10 21:13:02,869 | INFO | arg: {'path': 'IMDB-Dataset.csv', 'arch': 'Transformer', 'seed': 0, 'epochs': 10, 'batch_size': 32, 'lr': 0.0003, 'min_lr': 1e-05, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'beta1': 0.9, 'beta2': 0.98, 'split': 0.8, 'max_len': 256, 'max_vocab_size': 20000, 'min_freq': 2, 'pad_token': '<PAD>', 'unk_token': '<UNK>', 'embed_size': 256, 'hidden_size': 256, 'n_layers': 4, 'dropout': 0.1, 'n_head': 4, 'n_ff': 1024, 'num_classes': 2}
+2026-01-10 21:13:02,869 | INFO | running epoch: 1/10
+2026-01-10 21:16:52,319 | INFO | train_loss=0.7010 train_acc=0.5127 test_loss=0.5811 test_acc=0.7110
+2026-01-10 21:16:52,321 | INFO | running epoch: 2/10
+2026-01-10 21:21:10,299 | INFO | train_loss=0.4354 train_acc=0.8005 test_loss=0.3186 test_acc=0.8658
+2026-01-10 21:21:10,300 | INFO | running epoch: 3/10
+2026-01-10 21:30:52,734 | INFO | train_loss=0.3142 train_acc=0.8683 test_loss=0.4286 test_acc=0.8340
+2026-01-10 21:30:52,735 | INFO | running epoch: 4/10
+2026-01-10 21:40:34,329 | INFO | train_loss=0.2571 train_acc=0.8964 test_loss=0.3068 test_acc=0.8815
+2026-01-10 21:40:34,330 | INFO | running epoch: 5/10
+2026-01-10 21:50:27,677 | INFO | train_loss=0.2269 train_acc=0.9119 test_loss=0.3277 test_acc=0.8757
+2026-01-10 21:50:27,678 | INFO | running epoch: 6/10
+2026-01-10 21:58:49,361 | INFO | train_loss=0.1992 train_acc=0.9230 test_loss=0.2986 test_acc=0.8904
+2026-01-10 21:58:49,361 | INFO | running epoch: 7/10
+2026-01-10 22:02:01,956 | INFO | train_loss=0.1819 train_acc=0.9313 test_loss=0.3121 test_acc=0.8889
+2026-01-10 22:02:01,956 | INFO | running epoch: 8/10
+2026-01-10 22:05:13,515 | INFO | train_loss=0.1642 train_acc=0.9383 test_loss=0.3042 test_acc=0.8912
+2026-01-10 22:05:13,515 | INFO | running epoch: 9/10
+2026-01-10 22:08:25,032 | INFO | train_loss=0.1553 train_acc=0.9427 test_loss=0.3071 test_acc=0.8942
+2026-01-10 22:08:25,033 | INFO | running epoch: 10/10
+2026-01-10 22:11:37,461 | INFO | train_loss=0.1505 train_acc=0.9453 test_loss=0.3112 test_acc=0.8937
+2026-01-10 22:38:14,588 | INFO | arg: {'path': 'IMDB-Dataset.csv', 'arch': 'Transformer', 'seed': 0, 'epochs': 10, 'batch_size': 32, 'lr': 0.0003, 'min_lr': 1e-05, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'beta1': 0.9, 'beta2': 0.98, 'split': 0.8, 'max_len': 256, 'max_vocab_size': 20000, 'min_freq': 2, 'pad_token': '<PAD>', 'unk_token': '<UNK>', 'embed_size': 256, 'hidden_size': 256, 'n_layers': 6, 'dropout': 0.2, 'n_head': 4, 'n_ff': 1024, 'num_classes': 2}
+2026-01-10 22:38:14,590 | INFO | running epoch: 1/10
+2026-01-10 22:42:54,274 | INFO | train_loss=0.7052 train_acc=0.5049 test_loss=0.6453 test_acc=0.6309
+2026-01-10 22:42:54,275 | INFO | running epoch: 2/10
+2026-01-10 22:47:34,398 | INFO | train_loss=0.5018 train_acc=0.7575 test_loss=0.3921 test_acc=0.8465
+2026-01-10 22:47:34,399 | INFO | running epoch: 3/10
+2026-01-10 22:52:14,306 | INFO | train_loss=0.3415 train_acc=0.8563 test_loss=0.4006 test_acc=0.8665
+2026-01-10 22:52:14,307 | INFO | running epoch: 4/10
+2026-01-11 00:03:52,069 | INFO | arg: {'path': 'IMDB-Dataset.csv', 'arch': 'Transformer', 'seed': 0, 'epochs': 10, 'batch_size': 32, 'lr': 0.0003, 'min_lr': 1e-05, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'beta1': 0.9, 'beta2': 0.98, 'split': 0.8, 'max_len': 256, 'max_vocab_size': 20000, 'min_freq': 2, 'pad_token': '<PAD>', 'unk_token': '<UNK>', 'embed_size': 256, 'hidden_size': 256, 'n_layers': 6, 'dropout': 0.2, 'n_head': 4, 'n_ff': 1024, 'num_classes': 2}
+2026-01-11 00:03:52,070 | INFO | running epoch: 1/10
+2026-01-11 00:08:33,694 | INFO | train_loss=0.7052 train_acc=0.5050 test_loss=0.6649 test_acc=0.5991
+2026-01-11 00:08:33,694 | INFO | running epoch: 2/10
+2026-01-11 00:13:14,376 | INFO | train_loss=0.4999 train_acc=0.7559 test_loss=0.4061 test_acc=0.8423
+2026-01-11 00:13:14,379 | INFO | running epoch: 3/10
+2026-01-11 00:17:54,277 | INFO | train_loss=0.3416 train_acc=0.8553 test_loss=0.3749 test_acc=0.8652
+2026-01-11 00:17:54,278 | INFO | running epoch: 4/10
+2026-01-11 00:22:34,854 | INFO | train_loss=0.2863 train_acc=0.8830 test_loss=0.3532 test_acc=0.8741
+2026-01-11 00:22:34,855 | INFO | running epoch: 5/10
+2026-01-11 00:27:15,422 | INFO | train_loss=0.2526 train_acc=0.8987 test_loss=0.3498 test_acc=0.8772
+2026-01-11 00:27:15,422 | INFO | running epoch: 6/10
+2026-01-11 00:31:56,041 | INFO | train_loss=0.2264 train_acc=0.9115 test_loss=0.3246 test_acc=0.8796
+2026-01-11 00:31:56,042 | INFO | running epoch: 7/10
+2026-01-11 00:36:36,488 | INFO | train_loss=0.2076 train_acc=0.9184 test_loss=0.3243 test_acc=0.8909
+2026-01-11 00:36:36,489 | INFO | running epoch: 8/10
+2026-01-11 00:41:17,264 | INFO | train_loss=0.1921 train_acc=0.9257 test_loss=0.3497 test_acc=0.8871
+2026-01-11 00:41:17,264 | INFO | running epoch: 9/10
+2026-01-11 00:45:59,445 | INFO | train_loss=0.1828 train_acc=0.9296 test_loss=0.3304 test_acc=0.8900
+2026-01-11 00:45:59,445 | INFO | running epoch: 10/10
+2026-01-11 00:50:39,979 | INFO | train_loss=0.1783 train_acc=0.9317 test_loss=0.3458 test_acc=0.8878

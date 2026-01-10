@@ -3,7 +3,7 @@
 
 python main.py \
   --arch GRU \
-  --epochs 6 \
+  --epochs 10 \
   --batch_size 64 \
   --lr 1e-3 \
   --weight_decay 0.0 \

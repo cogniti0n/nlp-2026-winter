@@ -14,8 +14,8 @@ python main.py \
   --max_vocab_size 20000 \
   --min_freq 2 \
   --embed_size 256 \
-  --n_layers 4 \
+  --n_layers 6 \
   --n_head 4 \
   --n_ff 1024 \
-  --dropout 0.1 \
+  --dropout 0.2 \
   --seed 0
