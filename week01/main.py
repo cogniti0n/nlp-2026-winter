@@ -1,5 +1,7 @@
 import re
 import random
+import logging
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -25,6 +27,17 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def setup_logging(log_path):
+    logger = logging.getLogger("train")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+    fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    fh = logging.FileHandler(log_path)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+    return logger
 
 _word_re = re.compile(r"[A-Za-z0-9']+")
 
@@ -203,13 +216,24 @@ def main(args):
     else:
         scheduler = CosineAnnealingLR(optimizer, T_max=max_step, eta_min=args.min_lr)
 
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_name = logs_dir / f"results-arch-{args.arch}.log"
+    logger = setup_logging(log_name)
+    logger.info(f"arg: {vars(args)}")
+
     for epoch in range(args.epochs):
+        logger.info(f"running epoch: {epoch + 1}/{args.epochs}")
         print(f"running epoch: {epoch + 1}/{args.epochs}")
         train_loss, train_acc = run_epoch(
             model, train_dataloader, loss_fn, optimizer, scheduler, device
         )
         test_loss, test_acc = run_epoch(
             model, test_dataloader, loss_fn, None, None, device
+        )
+        logger.info(
+            f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} "
+            f"test_loss={test_loss:.4f} test_acc={test_acc:.4f}"
         )
         print(
             f"train_loss={train_loss:.4f} train_acc={train_acc:.4f} "

@@ -1,0 +1,21 @@
+#!/bin/bash
+# contains the optimal hyperparameters for GRU run
+
+python main.py \
+  --arch Transformer \
+  --epochs 10 \
+  --batch_size 32 \
+  --lr 3e-4 \
+  --weight_decay 0.01 \
+  --beta1 0.9 --beta2 0.98 \
+  --warmup_ratio 0.06 \
+  --min_lr 1e-5 \
+  --max_len 256 \
+  --max_vocab_size 20000 \
+  --min_freq 2 \
+  --embed_size 256 \
+  --n_layers 4 \
+  --n_head 4 \
+  --n_ff 1024 \
+  --dropout 0.1 \
+  --seed 0
