@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, SequentialLR
 
-from attention import TransformerEncoder, TransformerConfig
+from attention import TransformerEncoder, TransformerEncoderTweak, TransformerConfig
 from gru import GRUEncoder
 
 from dataclasses import dataclass
@@ -195,7 +195,10 @@ def main(args):
             n_ff=args.n_ff,
             dropout=args.dropout,
         )
-        model = TransformerEncoder(config)
+        if args.arch == "TransformerTweak":
+            model = TransformerEncoderTweak(config)
+        else:
+            model = TransformerEncoder(config)
 
     model = model.to(device)
 
@@ -218,7 +221,10 @@ def main(args):
 
     logs_dir = Path("logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
-    log_name = logs_dir / f"results-arch-{args.arch}.log"
+    if args.arch == "TransformerTweak":
+        log_name = logs_dir / f"results-arch-{args.arch}-seed{args.seed}-layers{args.n_layers}.log"
+    else:
+        log_name = logs_dir / f"results-arch-{args.arch}.log"
     logger = setup_logging(log_name)
     logger.info(f"arg: {vars(args)}")
 
@@ -245,7 +251,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--path", type=str, default="IMDB-Dataset.csv")
-    parser.add_argument("--arch", type=str, default="GRU", choices=["GRU", "Transformer"])
+    parser.add_argument("--arch", type=str, default="GRU", choices=["GRU", "Transformer", "TransformerTweak"])
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=32)

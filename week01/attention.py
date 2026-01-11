@@ -35,6 +35,17 @@ class PositionalEncoding(nn.Module):
         pos_enc = self.pos_enc[:T]
         return pos_enc if device is None else pos_enc.to(device)
 
+class PositionalEncodingLearnable(nn.Module):
+
+    def __init__(self, n_embd, max_len):
+        super().__init__()
+        self.weight = nn.Parameter(torch.empty(max_len, n_embd))
+        nn.init.normal_(self.weight, mean=0, std=0.02)
+
+    def forward(self, T, device=None):
+        positions = torch.arange(T, device=device)
+        return self.weight.index_select(0, positions)
+
 class EmbeddingLayer(nn.Module):
 
     def __init__(self, num_embeddings, embedding_dim, padding_idx=None):
@@ -115,6 +126,23 @@ class FeedForwardNetwork(nn.Module):
         out = self.dropout(out)
         return out
     
+class FeedForwardNetworkGELU(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        self.fc1 = nn.Linear(config.n_embd, config.n_ff)
+        self.fc2 = nn.Linear(config.n_ff, config.n_embd)
+        self.gelu = nn.GELU() # tweak: gelu nonlinearity
+        self.dropout = nn.Dropout(config.dropout)
+
+    def forward(self, x):
+        out = self.fc1(x)
+        out = self.gelu(out)
+        out = self.dropout(out)
+        out = self.fc2(out)
+        out = self.dropout(out)
+        return out
+    
 class Block(nn.Module):
 
     def __init__(self, config):
@@ -129,6 +157,20 @@ class Block(nn.Module):
         out = out + self.ffn(self.ln_2(out))
         return out
     
+class BlockGELU(nn.Module):
+
+    def __init__(self, config):
+        super().__init__()
+        self.ln_1 = nn.LayerNorm(config.n_embd)
+        self.mhsa = MultiHeadSelfAttention(config)
+        self.ln_2 = nn.LayerNorm(config.n_embd)
+        self.ffn_gelu = FeedForwardNetworkGELU(config)
+
+    def forward(self, x, mask=None):
+        out = x + self.mhsa(self.ln_1(x), mask=mask)
+        out = out + self.ffn_gelu(self.ln_2(out))
+        return out
+    
 class TransformerEncoder(nn.Module):
     
     def __init__(self, config):
@@ -138,6 +180,45 @@ class TransformerEncoder(nn.Module):
             wte = EmbeddingLayer(config.vocab_size, config.n_embd, padding_idx=config.pad_idx),
             wpe = PositionalEncoding(config.n_embd, config.block_size + 1),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layers)])
+        ))
+        self.cls = nn.Parameter(torch.zeros(1, 1, config.n_embd))
+        nn.init.normal_(self.cls, mean=0, std=0.02)
+        self.classifier = nn.Linear(config.n_embd, 2)
+        self.ln_f = nn.LayerNorm(config.n_embd)
+        self.dropout = nn.Dropout(config.dropout)
+    
+    def forward(self, idx, lengths): # add lengths argument to match GRU
+        B, T = idx.size()
+        assert T <= self.config.block_size
+
+        src_key_padding_mask = (idx == self.config.pad_idx)
+        tok_emb = self.transformer.wte(idx)  # (B, T, C)
+        cls = self.cls.expand(B, 1, self.config.n_embd)
+        x = torch.cat([cls, tok_emb], dim=1)
+
+        cls_mask = torch.zeros(B, 1, dtype=torch.bool, device=idx.device)
+        mask = torch.cat([cls_mask, src_key_padding_mask], dim=1)
+
+        pos_emb = self.transformer.wpe(T + 1, device=idx.device)
+        out = self.dropout(x + pos_emb.unsqueeze(0))
+
+        for block in self.transformer.h:
+            out = block(out, mask=mask)
+
+        out = self.ln_f(out)
+        cls_out = out[:, 0, :]
+        logits = self.classifier(cls_out)
+        return logits
+
+class TransformerEncoderTweak(nn.Module):
+    
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.transformer = nn.ModuleDict(dict(
+            wte = EmbeddingLayer(config.vocab_size, config.n_embd, padding_idx=config.pad_idx),
+            wpe = PositionalEncodingLearnable(config.n_embd, config.block_size + 1),
+            h = nn.ModuleList([BlockGELU(config) for _ in range(config.n_layers)])
         ))
         self.cls = nn.Parameter(torch.zeros(1, 1, config.n_embd))
         nn.init.normal_(self.cls, mean=0, std=0.02)
