@@ -5,7 +5,7 @@ python main.py \
   --arch TransformerTweak \
   --epochs 10 \
   --batch_size 32 \
-  --lr 3e-4 \
+  --lr 2e-4 \
   --weight_decay 0.01 \
   --beta1 0.9 --beta2 0.98 \
   --warmup_ratio 0.06 \

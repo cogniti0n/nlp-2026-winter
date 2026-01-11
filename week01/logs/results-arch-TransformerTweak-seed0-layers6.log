@@ -1,0 +1,21 @@
+2026-01-11 18:27:08,579 | INFO | arg: {'path': 'IMDB-Dataset.csv', 'arch': 'TransformerTweak', 'seed': 0, 'epochs': 10, 'batch_size': 32, 'lr': 0.0002, 'min_lr': 1e-05, 'warmup_ratio': 0.06, 'weight_decay': 0.01, 'beta1': 0.9, 'beta2': 0.98, 'split': 0.8, 'max_len': 256, 'max_vocab_size': 20000, 'min_freq': 2, 'pad_token': '<PAD>', 'unk_token': '<UNK>', 'embed_size': 256, 'hidden_size': 256, 'n_layers': 6, 'dropout': 0.2, 'n_head': 4, 'n_ff': 1024, 'num_classes': 2}
+2026-01-11 18:27:08,579 | INFO | running epoch: 1/10
+2026-01-11 18:29:14,513 | INFO | train_loss=0.4253 train_acc=0.7941 test_loss=0.3333 test_acc=0.8672
+2026-01-11 18:29:14,513 | INFO | running epoch: 2/10
+2026-01-11 18:31:18,972 | INFO | train_loss=0.2680 train_acc=0.8929 test_loss=0.2870 test_acc=0.8789
+2026-01-11 18:31:18,972 | INFO | running epoch: 3/10
+2026-01-11 18:33:23,633 | INFO | train_loss=0.2076 train_acc=0.9223 test_loss=0.2954 test_acc=0.8834
+2026-01-11 18:33:23,633 | INFO | running epoch: 4/10
+2026-01-11 18:35:29,149 | INFO | train_loss=0.1649 train_acc=0.9394 test_loss=0.3834 test_acc=0.8843
+2026-01-11 18:35:29,149 | INFO | running epoch: 5/10
+2026-01-11 18:37:33,900 | INFO | train_loss=0.1296 train_acc=0.9534 test_loss=0.4570 test_acc=0.8658
+2026-01-11 18:37:33,900 | INFO | running epoch: 6/10
+2026-01-11 18:39:28,954 | INFO | train_loss=0.1006 train_acc=0.9650 test_loss=0.4995 test_acc=0.8785
+2026-01-11 18:39:28,954 | INFO | running epoch: 7/10
+2026-01-11 18:41:34,403 | INFO | train_loss=0.0796 train_acc=0.9744 test_loss=0.6013 test_acc=0.8768
+2026-01-11 18:41:34,404 | INFO | running epoch: 8/10
+2026-01-11 18:43:38,956 | INFO | train_loss=0.0603 train_acc=0.9798 test_loss=0.6820 test_acc=0.8747
+2026-01-11 18:43:38,956 | INFO | running epoch: 9/10
+2026-01-11 18:45:43,638 | INFO | train_loss=0.0483 train_acc=0.9837 test_loss=0.7331 test_acc=0.8735
+2026-01-11 18:45:43,639 | INFO | running epoch: 10/10
+2026-01-11 18:47:49,024 | INFO | train_loss=0.0401 train_acc=0.9870 test_loss=0.8095 test_acc=0.8728
