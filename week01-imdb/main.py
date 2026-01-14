@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import List, Dict
 from collections import Counter
 
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -39,10 +40,13 @@ def setup_logging(log_path):
     logger.addHandler(fh)
     return logger
 
+
 _word_re = re.compile(r"[A-Za-z0-9']+")
+
 
 def tokenize(text: str) -> List[str]:
     return _word_re.findall(text.lower())
+
 
 @dataclass
 class Vocab:
@@ -50,16 +54,19 @@ class Vocab:
     itos: List[str]
     pad_token: str = "<PAD>"
     unk_token: str = "<UNK>"
-    
+
     @property
     def pad_idx(self):
         return self.stoi[self.pad_token]
-    
+
     @property
     def unk_idx(self):
         return self.stoi[self.unk_token]
-    
-def build_vocab(texts, max_vocab_size, min_freq=1, pad_token ="<PAD>", unk_token ="<UNK>"):
+
+
+def build_vocab(
+    texts, max_vocab_size, min_freq=1, pad_token="<PAD>", unk_token="<UNK>"
+):
     counter = Counter()
     for t in texts:
         counter.update(tokenize(t))
@@ -68,13 +75,17 @@ def build_vocab(texts, max_vocab_size, min_freq=1, pad_token ="<PAD>", unk_token
     stoi = {pad_token: 0, unk_token: 1}
 
     for token, freq in counter.most_common():
-        if freq < min_freq: break
-        if token in stoi: continue
+        if freq < min_freq:
+            break
+        if token in stoi:
+            continue
         stoi[token] = len(itos)
         itos.append(token)
-        if len(itos) >= max_vocab_size: break
-    
+        if len(itos) >= max_vocab_size:
+            break
+
     return Vocab(stoi, itos, pad_token, unk_token)
+
 
 def encode_text(text, vocab, max_len):
     tokens = tokenize(text)
@@ -86,8 +97,9 @@ def encode_text(text, vocab, max_len):
 
     if len(ids) < max_len:
         ids = ids + [vocab.pad_idx] * (max_len - len(ids))
-    
+
     return torch.tensor(ids, dtype=torch.long)
+
 
 def load_csv(path, text_col="review", label_col="sentiment"):
     df = pd.read_csv(path)
@@ -96,12 +108,14 @@ def load_csv(path, text_col="review", label_col="sentiment"):
     labels = [1 if r == "positive" else 0 for r in labels]
     return texts, labels
 
+
 def shuffle(texts, labels, seed):
     rng = np.random.default_rng(seed)
     perm = rng.permutation(len(texts))
     texts = [texts[i] for i in perm]
     labels = [labels[i] for i in perm]
     return texts, labels
+
 
 class IMDBDataset(Dataset):
 
@@ -111,7 +125,7 @@ class IMDBDataset(Dataset):
         self.labels = labels
         self.vocab = vocab
         self.max_len = max_len
-    
+
     def __len__(self):
         return len(self.texts)
 
@@ -120,6 +134,7 @@ class IMDBDataset(Dataset):
         y = torch.tensor(self.labels[idx], dtype=torch.long)
         length = (x != self.vocab.pad_idx).sum().item()
         return x, y, length
+
 
 def run_epoch(model, dataloader, loss_fn, optimizer, scheduler, device):
     is_train = optimizer is not None
@@ -155,24 +170,33 @@ def run_epoch(model, dataloader, loss_fn, optimizer, scheduler, device):
     acc = correct / max(total, 1)
     return avg_loss, acc
 
+
 def main(args):
     set_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     texts, labels = load_csv(args.path)
-    
+
     texts, labels = shuffle(texts, labels, args.seed)
     n_split = int(args.split * len(texts))
-    texts_train = texts[:n_split]; texts_test = texts[n_split:]
-    labels_train = labels[:n_split]; labels_test = labels[n_split:]
-    
-    vocab = build_vocab(texts_train, args.max_vocab_size, args.min_freq, args.pad_token, args.unk_token)
+    texts_train = texts[:n_split]
+    texts_test = texts[n_split:]
+    labels_train = labels[:n_split]
+    labels_test = labels[n_split:]
+
+    vocab = build_vocab(
+        texts_train, args.max_vocab_size, args.min_freq, args.pad_token, args.unk_token
+    )
 
     train_dataset = IMDBDataset(texts_train, labels_train, vocab, args.max_len)
     test_dataset = IMDBDataset(texts_test, labels_test, vocab, args.max_len)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=args.batch_size, shuffle=True
+    )
+    test_dataloader = DataLoader(
+        test_dataset, batch_size=args.batch_size, shuffle=False
+    )
 
     if args.arch == "GRU":
         model = GRUEncoder(
@@ -205,7 +229,7 @@ def main(args):
     opt_kwargs = {
         "lr": args.lr,
         "weight_decay": args.weight_decay,
-        "betas": (args.beta1, args.beta2)
+        "betas": (args.beta1, args.beta2),
     }
     optimizer = AdamW(model.parameters(), **opt_kwargs)
     loss_fn = nn.CrossEntropyLoss()
@@ -213,16 +237,27 @@ def main(args):
     max_step = args.epochs * len(train_dataloader)
     warmup_step = int(max_step * args.warmup_ratio)
     if warmup_step > 0:
-        warmup_scheduler = LambdaLR(optimizer, lr_lambda=lambda step: min((step + 1) / warmup_step, 1.0))
-        cosine_scheduler = CosineAnnealingLR(optimizer, T_max=max_step - warmup_step, eta_min=args.min_lr)
-        scheduler = SequentialLR(optimizer, schedulers=[warmup_scheduler, cosine_scheduler], milestones=[warmup_step])
+        warmup_scheduler = LambdaLR(
+            optimizer, lr_lambda=lambda step: min((step + 1) / warmup_step, 1.0)
+        )
+        cosine_scheduler = CosineAnnealingLR(
+            optimizer, T_max=max_step - warmup_step, eta_min=args.min_lr
+        )
+        scheduler = SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, cosine_scheduler],
+            milestones=[warmup_step],
+        )
     else:
         scheduler = CosineAnnealingLR(optimizer, T_max=max_step, eta_min=args.min_lr)
 
     logs_dir = Path("logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
     if args.arch == "TransformerTweak":
-        log_name = logs_dir / f"results-arch-{args.arch}-seed{args.seed}-layers{args.n_layers}.log"
+        log_name = (
+            logs_dir
+            / f"results-arch-{args.arch}-seed{args.seed}-layers{args.n_layers}.log"
+        )
     else:
         log_name = logs_dir / f"results-arch-{args.arch}.log"
     logger = setup_logging(log_name)
@@ -246,12 +281,19 @@ def main(args):
             f"test_loss={test_loss:.4f} test_acc={test_acc:.4f}"
         )
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--path", type=str, default="IMDB-Dataset.csv")
-    parser.add_argument("--arch", type=str, default="GRU", choices=["GRU", "Transformer", "TransformerTweak"])
+    parser.add_argument(
+        "--arch",
+        type=str,
+        default="GRU",
+        choices=["GRU", "Transformer", "TransformerTweak"],
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=32)

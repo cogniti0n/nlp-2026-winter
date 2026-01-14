@@ -8,17 +8,20 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets import CocoCaptions
 
+
 class CocoCaptionsCLIP(CocoCaptions):
     def __getitem__(self, index):
         image, captions = super().__getitem__(index)
         caption = captions[0]
         return image, caption
 
+
 def coco_collate_fn(batch):
     # batch: list[(image_tensor, caption_str)]
     images, captions = zip(*batch)
     images = torch.stack(images, dim=0)
     return images, list(captions)
+
 
 class ImageNetVal(Dataset):
     def __init__(
@@ -51,11 +54,15 @@ class ImageNetVal(Dataset):
                     continue
                 y = int(s)
                 if y < 1 or y > 1000:
-                    raise ValueError(f"Invalid label {y} in {gt_path} (expected 1..1000)")
+                    raise ValueError(
+                        f"Invalid label {y} in {gt_path} (expected 1..1000)"
+                    )
                 labels.append(y - 1)
 
         if strict and len(labels) != 50000:
-            raise RuntimeError(f"Expected 50000 labels, got {len(labels)} from {gt_path}")
+            raise RuntimeError(
+                f"Expected 50000 labels, got {len(labels)} from {gt_path}"
+            )
 
         self.labels = labels
 
@@ -80,17 +87,20 @@ class ImageNetVal(Dataset):
             image = self.transform(image)
         return image, target
 
+
 class CC3M(Dataset):
     pass
 
+
 import glob
 import webdataset as wds
+
 
 def get_cc3m_loader(args, preprocess_fn, num_workers, batch_size, world_size=1):
     shards = sorted(glob.glob(os.path.join(args.cc3m_path, "*.tar")))
     if not shards:
         raise FileNotFoundError
-    
+
     print(f"# of shards: {len(shards)}")
 
     def decode_caption(t):
@@ -106,31 +116,37 @@ def get_cc3m_loader(args, preprocess_fn, num_workers, batch_size, world_size=1):
         wds.WebDataset(shards, resampled=True, nodesplitter=wds.split_by_node)
         .shuffle(1000)
         .decode("pil", handler=wds.warn_and_continue)
-        .rename(image="jpg;png", text="txt;caption;json") # Handle potential key variations
+        .rename(
+            image="jpg;png", text="txt;caption;json"
+        )  # Handle potential key variations
         .map_dict(image=preprocess_fn, text=decode_caption)
         .to_tuple("image", "text")
         .batched(batch_size, partial=False)
     )
     dataset = dataset.compose(wds.split_by_worker)
 
-    epoch_length = 3_000_000 
+    epoch_length = 3_000_000
     num_batches = epoch_length // (batch_size * max(1, world_size))
-    
+
     loader = wds.WebLoader(
         dataset,
         batch_size=None,
         shuffle=False,
         num_workers=num_workers,
-        persistent_workers=True
+        persistent_workers=True,
     ).with_length(num_batches)
 
     return loader
 
+
 import webdataset as wds
 import braceexpand
 
-def get_datacomp_loader(args, preprocess_fn, num_workers, batch_size, world_size=1, epoch_length=12800000): # 10 epochs
-    
+
+def get_datacomp_loader(
+    args, preprocess_fn, num_workers, batch_size, world_size=1, epoch_length=12800000
+):  # 10 epochs
+
     url = "https://huggingface.co/datasets/mlfoundations/datacomp_small/resolve/main/shards/{00000..01280}.tar"
     urls = list(braceexpand.braceexpand(url))
 
@@ -140,7 +156,9 @@ def get_datacomp_loader(args, preprocess_fn, num_workers, batch_size, world_size
         .decode("pil", handler=wds.warn_and_continue)
         .to_tuple("jpg", "json")
         .map_tuple(preprocess_fn, lambda x: x["caption"])
-        .with_epoch(epoch_length // max(1, world_size))  # keep global epoch size across ranks
+        .with_epoch(
+            epoch_length // max(1, world_size)
+        )  # keep global epoch size across ranks
         .batched(batch_size, partial=False)
     )
     dataset = dataset.compose(wds.split_by_worker)
@@ -150,7 +168,7 @@ def get_datacomp_loader(args, preprocess_fn, num_workers, batch_size, world_size
         batch_size=None,
         shuffle=False,
         num_workers=num_workers,
-        persistent_workers=True
+        persistent_workers=True,
     )
 
     length = epoch_length // (batch_size * max(1, world_size))
@@ -158,7 +176,9 @@ def get_datacomp_loader(args, preprocess_fn, num_workers, batch_size, world_size
 
     return loader
 
+
 from torchvision.datasets import Flowers102, StanfordCars, Food101
+
 
 def get_transfer_dataset(name: str, root: str, transform=None, split: str = "train"):
     if name == "flowers102":
@@ -166,7 +186,9 @@ def get_transfer_dataset(name: str, root: str, transform=None, split: str = "tra
     elif name == "stanfordcars":
         if split == "val":
             split = "test"
-        dataset = StanfordCars(root=root, split=split, transform=transform, download=True)
+        dataset = StanfordCars(
+            root=root, split=split, transform=transform, download=True
+        )
     elif name == "food101":
         if split == "val":
             split = "test"
@@ -175,12 +197,21 @@ def get_transfer_dataset(name: str, root: str, transform=None, split: str = "tra
         raise ValueError(f"Unknown transfer dataset: {name}")
     return dataset
 
+
 def get_classname_from_torchvision_dataset(ds):
-    if hasattr(ds, "classes") and isinstance(ds.classes, (list, tuple)) and len(ds.classes) > 0:
+    if (
+        hasattr(ds, "classes")
+        and isinstance(ds.classes, (list, tuple))
+        and len(ds.classes) > 0
+    ):
         return list(ds.classes)
 
     # some datasets use categories
-    if hasattr(ds, "categories") and isinstance(ds.categories, (list, tuple)) and len(ds.categories) > 0:
+    if (
+        hasattr(ds, "categories")
+        and isinstance(ds.categories, (list, tuple))
+        and len(ds.categories) > 0
+    ):
         return list(ds.categories)
 
     # last resort: create placeholder class names
