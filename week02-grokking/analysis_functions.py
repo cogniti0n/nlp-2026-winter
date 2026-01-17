@@ -224,7 +224,52 @@ def plot_metrics_progress_measure(result_path: str="results"):
 
     plt.savefig("plots/fig4_progressmeasure.pdf")
 
-if __name__ == "__main__":
-    os.makedirs("plots", exist_ok=True)
-    plot_metrics()
-    fourier_components()
+def plot_metrics_progress_measure_wd0(result_path: str="results_wd0"):
+
+    path = os.path.join(result_path, "progress", "progress_seed5.npz")
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"No metric files found in {result_path}")
+    
+    data = np.load(path)
+    n_points = len(data["restricted_loss"])
+    epoch_axis = np.linspace(0, 40000, n_points)
+    
+    fig, ax = plt.subplots(figsize=(10,5), nrows=2, ncols=2, constrained_layout=True)
+
+    # excluded loss
+    _ax = ax[0,0]
+    _ax.plot(epoch_axis, data["train_loss"], label="train loss")
+    _ax.plot(epoch_axis, data["test_loss"], label="test loss")
+    _ax.plot(epoch_axis, data["excluded_loss"], label="excluded loss")
+    _ax.legend(loc="best")
+    _ax.set_xlabel("Epoch")
+    _ax.set_ylabel("Loss")
+    _ax.set_title("Excluded Loss, wd=0")
+
+    # restricted loss
+    _ax = ax[0,1]
+    _ax.plot(epoch_axis, data["train_loss"], label="train loss")
+    _ax.plot(epoch_axis, data["test_loss"], label="test loss")
+    _ax.plot(epoch_axis, data["restricted_loss"], label="restricted loss")
+    _ax.legend(loc="best")
+    _ax.set_xlabel("Epoch")
+    _ax.set_ylabel("Loss")
+    _ax.set_title("Restricted Loss, wd=0")
+
+    # gini coefficients
+    _ax = ax[1,0]
+    _ax.plot(epoch_axis, data["gini_we"], label=r"$W_E$")
+    _ax.plot(epoch_axis, data["gini_wl"], label=r"$W_L$")
+    _ax.legend(loc="best")
+    _ax.set_xlabel("Epoch")
+    _ax.set_ylabel("Gini Coefficient")
+    _ax.set_title("Gini Coefficients, wd=0")
+
+    # total sum
+    _ax = ax[1,1]
+    _ax.plot(epoch_axis, data["total_squared_weight"])
+    _ax.set_xlabel("Epoch")
+    _ax.set_ylabel("Sum of Squared Weights")
+    _ax.set_title("Total Sum of Squared Weights, wd=0")
+
+    plt.savefig("plots/fig5_progressmeasure_wd0.pdf")
