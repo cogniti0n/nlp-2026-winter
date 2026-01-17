@@ -2,12 +2,15 @@ import random
 import os
 import numpy as np
 
-from typing import Tuple, cast
+from typing import cast
 from pathlib import Path
 
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
+import torch.nn.functional as F
+
+from progress_measure import compute_progress_measure
 
 
 def set_seed(seed):
@@ -20,7 +23,7 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-def create_dataset(P: int, train_frac: float, device: str = "cuda"):
+def create_dataset(P: int, train_frac: float, seed: int=0):
     eq_id = P
 
     a = torch.arange(P, dtype=torch.long)
@@ -35,7 +38,9 @@ def create_dataset(P: int, train_frac: float, device: str = "cuda"):
     x = torch.stack([aa, bb, eq], dim=1)  # (P^2, 3)
 
     N = x.shape[0]
-    perm = torch.randperm(N)
+    g = torch.Generator()
+    g.manual_seed(seed)
+    perm = torch.randperm(N, generator=g)
 
     n_train = int(train_frac * N)
     train_idx = perm[:n_train]
@@ -45,7 +50,6 @@ def create_dataset(P: int, train_frac: float, device: str = "cuda"):
     x_test, y_test = x[test_idx], y[test_idx]
 
     return x_train, y_train, x_test, y_test
-
 
 class TransformerModAdd(nn.Module):
 
@@ -59,7 +63,7 @@ class TransformerModAdd(nn.Module):
         self.tok_embd = nn.Embedding(vocab_size, d_model)
         self.pos_embd = nn.Embedding(seq_len, d_model)
 
-        self.mha = nn.MultiheadAttention(d_model, n_head, batch_first=True)
+        self.mha = nn.MultiheadAttention(d_model, n_head, batch_first=True, bias=False, dropout=0.0)
         self.mlp = nn.Sequential(
             nn.Linear(d_model, d_fc),
             nn.ReLU(),
@@ -71,9 +75,8 @@ class TransformerModAdd(nn.Module):
         B, L = x.shape
         assert L == self.seq_len
 
-        pos = torch.arange(L, device=x.device).unsqueeze(0).expand(B, L)
+        pos = torch.arange(L, device=x.device)
         h = self.tok_embd(x) + self.pos_embd(pos)
-
         attn_out, _ = self.mha(h, h, h, need_weights=False)
         h = h + attn_out  # residual
 
@@ -87,7 +90,7 @@ class TransformerModAdd(nn.Module):
     def wu(self):
         return self.unembd.weight
 
-    def wout(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def wout(self):
         layer = cast(nn.Linear, self.mlp[2])
         return layer.weight, layer.bias
 
@@ -151,6 +154,17 @@ def train_epoch(model, optimizer, loss_fn, x, y):
 def main(args):
     set_seed(args.seed)
     device = args.device
+
+    # store the results
+    results_dir = args.results_dir
+    os.makedirs(results_dir, exist_ok=True)
+
+    ckpt_dir = os.path.join(results_dir, "checkpoints")
+    os.makedirs(ckpt_dir, exist_ok=True)
+
+    prog_dir = os.path.join(results_dir, "progress")
+    os.makedirs(prog_dir, exist_ok=True)
+    
     model = TransformerModAdd(
         P=args.P,
         d_model=args.d_model,
@@ -159,10 +173,10 @@ def main(args):
         seq_len=args.seq_len,
     ).to(device)
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
-    loss_fn = nn.CrossEntropyLoss()
+    loss_fn = F.cross_entropy
 
     print(f"creating dataset, P={args.P}")
-    x_train, y_train, x_test, y_test = create_dataset(args.P, args.train_frac, device)
+    x_train, y_train, x_test, y_test = create_dataset(args.P, args.train_frac, args.seed)
     x_train, y_train = x_train.to(device), y_train.to(device)
     x_test, y_test = x_test.to(device), y_test.to(device)
 
@@ -171,10 +185,18 @@ def main(args):
     test_loss_tot = np.zeros((args.epochs,))
     test_acc_tot = np.zeros((args.epochs,))
 
+    restricted_loss_tot = []
+    excluded_loss_tot = []
+    train_loss_tot_ = []
+    test_loss_tot_ = []
+    gini_we = []
+    gini_wl = []
+    total_squared_weight = []
+
+
     print(f"Beginning training for {args.epochs} epochs")
     model.train()
     for epoch in range(args.epochs):
-        print(f"Running epoch: {epoch + 1}/{args.epochs}")
         train_loss, train_acc = train_epoch(model, optimizer, loss_fn, x_train, y_train)
         test_loss, test_acc = eval_epoch(model, loss_fn, x_test, y_test)
 
@@ -182,11 +204,40 @@ def main(args):
         train_acc_tot[epoch] = train_acc
         test_loss_tot[epoch] = test_loss
         test_acc_tot[epoch] = test_acc
-    print("Training complete")
 
-    # store the results
-    results_dir = args.results_dir
-    os.makedirs(results_dir, exist_ok=True)
+        if (epoch + 1) % args.log_interval == 0:
+            print(
+                f"After epoch: {epoch + 1}/{args.epochs} | "
+                f"train loss: {train_loss:.4f} | test loss: {test_loss:.4f} | "
+                f"train acc: {train_acc:.4f} | test acc: {test_acc:.4f}"
+            )
+
+        if (epoch + 1) % args.save_interval == 0 and args.k is not None and len(args.k) > 0:
+            k_key = torch.tensor(args.k, device=device, dtype=torch.long)
+            pm = compute_progress_measure(model, k_key, x_train, y_train, x_test, y_test)
+
+            restricted_loss_tot.append(pm["restricted_loss"])
+            excluded_loss_tot.append(pm["excluded_loss"])
+            train_loss_tot_.append(train_loss)
+            test_loss_tot_.append(test_loss)
+            gini_we.append(pm["gini_we"])
+            gini_wl.append(pm["gini_wl"])
+            total_squared_weight.append(pm["total_squared_weight"])
+
+            # prog_path = os.path.join(prog_dir, f"progress_seed{args.seed}_epoch{epoch+1}.npz")
+            # np.savez(prog_path, **pm)
+
+            # model_path_tmp = os.path.join(ckpt_dir, f"modadd_seed{args.seed}_epoch{epoch+1}.pt")
+            # save_checkpoint(
+            #     model_path_tmp,
+            #     model,
+            #     optimizer=optimizer,
+            #     epoch=epoch + 1,
+            #     extra={"seed": args.seed, "train_frac": args.train_frac, "k": args.k},
+            # )
+
+    print("Training complete")
+    
     we, wu, wout, wl = model.we(), model.wu(), model.wout(), model.wl()
     wout_w, wout_b = wout
 
@@ -194,8 +245,10 @@ def main(args):
     print(
         f"WE {we.shape}, WU {wu.shape}, Wout {wout_w.shape}/{wout_b.shape}, WL {wl.shape}"
     )
-
-    results_path = os.path.join(results_dir, "metrics", f"seed_{args.seed}.npz")
+    
+    metrics_path = os.path.join(results_dir, "metrics")
+    os.makedirs(metrics_path, exist_ok=True)
+    results_path = os.path.join(metrics_path, f"seed_{args.seed}.npz")
     np.savez(
         results_path,
         train_loss=train_loss_tot,
@@ -204,13 +257,33 @@ def main(args):
         test_acc=test_acc_tot,
     )
 
-    model_path = os.path.join(results_dir, "checkpoints", f"modadd_seed{args.seed}.pt")
+    model_path = os.path.join(ckpt_dir, f"modadd_seed{args.seed}.pt")
     save_checkpoint(
         model_path,
         model,
         optimizer=optimizer,
-        epoch=args.epoch,
+        epoch=args.epochs,
         extra={"seed": args.seed, "train_frac": args.train_frac},
+    )
+
+    restricted_loss_tot = np.array(restricted_loss_tot)
+    excluded_loss_tot = np.array(excluded_loss_tot)
+    train_loss_tot_ = np.array(train_loss_tot_)
+    test_loss_tot_ = np.array(test_loss_tot_)
+    gini_we = np.array(gini_we)
+    gini_wl = np.array(gini_wl)
+    total_squared_weight = np.array(total_squared_weight)
+
+    prog_path = os.path.join(prog_dir, f"progress_seed{args.seed}.npz")
+    np.savez(
+        prog_path,
+        restricted_loss=restricted_loss_tot,
+        excluded_loss=excluded_loss_tot,
+        train_loss=train_loss_tot_,
+        test_loss=test_loss_tot_,
+        gini_we=gini_we,
+        gini_wl=gini_wl,
+        total_squared_weight=total_squared_weight
     )
 
 
@@ -231,6 +304,9 @@ if __name__ == "__main__":
     parser.add_argument("--wd", type=float, default=1.0)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--results-dir", type=str, default="results")
+    parser.add_argument("--log-interval", type=int, default=100)
+    parser.add_argument("--save-interval", type=int, default=500)
+    parser.add_argument("--k", type=int, nargs="+", required=True)
 
     args = parser.parse_args()
     set_seed(args.seed)
